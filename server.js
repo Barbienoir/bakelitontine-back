@@ -9,31 +9,12 @@ const { initSocket } = require("./config/socket");
 const app = express();
 const server = http.createServer(app);
 
-// ✅ CORS configuré pour Vercel
-const allowedOrigins = [
-  "https://bakelitontine20.vercel.app",
-  "http://localhost:5173", // pour le dev local
-  "http://localhost:3000",
-];
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  credentials: true,
-};
-
-// ✅ Socket.io
+// ✅ Socket.io - CORS ouvert
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
-    methods: ["GET", "POST"],
-    credentials: true,
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    credentials: false,
   },
 });
 
@@ -42,12 +23,21 @@ initSocket(io);
 // ✅ Connexion DB
 connectDB();
 
-// ✅ Middleware
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions)); // Gère les requêtes preflight OPTIONS
+// ✅ CORS complètement ouvert
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+app.use(cors());
 app.use(express.json());
 
-// ✅ Stripe Webhook (AVANT json parser)
+// ✅ Stripe Webhook (AVANT json)
 app.use(
   "/api/payments/stripe/webhook",
   express.raw({ type: "application/json" })
@@ -61,7 +51,7 @@ app.use("/api/caisse", require("./routes/caisseRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/payments", require("./routes/paymentRoutes"));
 
-// ✅ Route test (IMPORTANT pour Render)
+// ✅ Route test
 app.get("/", (req, res) => {
   res.send("API Bakeli Tontine is running 🚀");
 });
@@ -72,9 +62,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: "Erreur interne du serveur" });
 });
 
-// ✅ LANCEMENT SERVEUR
 const PORT = process.env.PORT || 5000;
-
 server.listen(PORT, () => {
   console.log(`🚀 Serveur lancé sur le port ${PORT}`);
 });
